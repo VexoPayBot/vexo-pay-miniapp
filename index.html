@@ -1,0 +1,255 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VEXO PAY</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:24px 18px;background:#0b1424;color:white;font-family:Arial,sans-serif}
+.app{max-width:440px;margin:auto}
+.logo{font-size:27px;font-weight:800;letter-spacing:2px}
+.logo span{color:#48a5ff}
+.subtitle,.description{color:#aab8ca;line-height:1.5}
+h1{margin-top:35px;font-size:28px}
+h2{font-size:20px}
+.menu{display:grid;gap:13px;margin-top:30px}
+button{width:100%;padding:18px;border:0;border-radius:13px;background:#1d65ad;color:white;font-size:16px;font-weight:bold;cursor:pointer}
+.secondary{background:#17263b}
+.notice,.result{margin-top:20px;padding:15px;border-radius:12px;background:#17263b;color:#aab8ca;white-space:pre-line}
+.hidden{display:none}
+input,select{width:100%;padding:15px;margin:9px 0 18px;border:1px solid #33445d;border-radius:11px;background:#17263b;color:white;font-size:16px}
+label{color:#bdc9d9;font-size:14px}
+.result strong{display:block;color:white;font-size:27px;margin-top:7px}
+.checkline{display:flex;align-items:center;gap:8px}
+.checkline input{width:auto;margin:0}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="logo">VEXO <span>PAY</span></div>
+<div class="subtitle">Обмен цифровых активов</div>
+
+<section id="home">
+<h1>Добро пожаловать!</h1>
+<p class="description">Выберите актив, который хотите продать.</p>
+<div class="menu">
+<button onclick="openOrder('USDT')">Продать USDT</button>
+<button onclick="openOrder('GRAM')">Продать Gram</button>
+<button class="secondary" onclick="showRates()">Курсы</button>
+<button class="secondary" onclick="showProfile()">Мои реквизиты</button>
+</div>
+<div class="notice">Демонстрационный режим. Реальные переводы не выполняются.</div>
+</section>
+
+<section id="order" class="hidden">
+<h1 id="orderTitle">Продать USDT</h1>
+<p class="description">Введите сумму обмена.</p>
+<label>Сумма актива</label>
+<input id="amount" type="number" min="0" step="any" placeholder="Например, 65" oninput="calculate()">
+<div class="result">
+Вы получите:
+<strong id="rubResult">0,00 ₽</strong>
+<div id="rateText">Курс: 96 ₽</div>
+</div>
+<button onclick="openDetails()" style="margin-top:20px">Продолжить</button>
+<button class="secondary" onclick="goHome()" style="margin-top:10px">Назад</button>
+</section>
+
+<section id="details" class="hidden">
+<h1>Ваши реквизиты</h1>
+<p class="description">Укажите данные получателя выплаты.</p>
+<label>Телефон</label>
+<input id="phone" type="tel" placeholder="+7 777 777-77-77">
+<label>ФИО получателя</label>
+<input id="fullname" placeholder="Иванов Иван Иванович">
+<label>Ваш банк</label>
+<select id="bank">
+<option value="">Выберите банк</option>
+<option>Т-Банк</option>
+<option>Сбербанк</option>
+<option>ВТБ</option>
+<option>Альфа-Банк</option>
+</select>
+<label>Не нашли свой банк? Напишите его название</label>
+<input id="otherBank" placeholder="Название банка">
+<div class="notice">
+Номер карты не собирается. Реальные выплаты потребуют безопасной интеграции с платёжным партнёром.
+</div>
+<label class="checkline">
+<input id="save" type="checkbox">
+Сохранить данные для следующих заявок
+</label>
+<button onclick="demoSubmit()" style="margin-top:20px">Продолжить</button>
+<button class="secondary" onclick="show('order')" style="margin-top:10px">Назад</button>
+</section>
+
+<section id="confirm" class="hidden">
+<h1>Проверьте заявку</h1>
+<p class="description">Убедитесь, что все данные указаны правильно.</p>
+<div class="notice">
+<p>Актив: <strong id="confirmAsset"></strong></p>
+<p>Сумма: <strong id="confirmAmount"></strong></p>
+<p>Курс: <strong id="confirmRate"></strong></p>
+<p>Вы получите:</p>
+<strong id="confirmRub" style="font-size:28px"></strong>
+</div>
+<h2>Реквизиты получателя</h2>
+<div class="notice">
+<p>Телефон: <strong id="confirmPhone"></strong></p>
+<p>ФИО: <strong id="confirmName"></strong></p>
+<p>Банк: <strong id="confirmBank"></strong></p>
+</div>
+<button onclick="finishDemo()" style="margin-top:20px">Подтвердить</button>
+<button class="secondary" onclick="show('details')" style="margin-top:10px">Назад и исправить</button>
+</section>
+
+<section id="profile" class="hidden">
+<h1>Мои реквизиты</h1>
+<div id="profileInfo" class="notice">Данные пока не сохранены.</div>
+<button onclick="editProfile()" style="margin-top:15px">Изменить реквизиты</button>
+<button class="secondary" onclick="goHome()" style="margin-top:10px">Назад</button>
+</section>
+
+<section id="rates" class="hidden">
+<h1>Курсы VEXO PAY</h1>
+<p>USDT — 96 ₽</p>
+<p>Gram — 107 ₽</p>
+<button class="secondary" onclick="goHome()">Назад</button>
+</section>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
+
+const RATES = { USDT: 96, GRAM: 107 };
+let selectedAsset = "USDT";
+let currentAmount = 0;
+let currentRub = 0;
+
+function show(id) {
+  ["home", "order", "details", "confirm", "profile", "rates"].forEach(x => {
+    document.getElementById(x).classList.add("hidden");
+  });
+  document.getElementById(id).classList.remove("hidden");
+}
+
+function goHome() {
+  show("home");
+}
+
+function openOrder(asset) {
+  selectedAsset = asset;
+  document.getElementById("orderTitle").textContent =
+    "Продать " + (asset === "GRAM" ? "Gram" : "USDT");
+  document.getElementById("amount").value = "";
+  calculate();
+  show("order");
+}
+
+function calculate() {
+  const amount = Number(document.getElementById("amount").value);
+  currentAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
+  currentRub = currentAmount * RATES[selectedAsset];
+
+  document.getElementById("rubResult").textContent =
+    currentRub.toLocaleString("ru-RU", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }) + " ₽";
+
+  document.getElementById("rateText").textContent =
+    "Курс: " + RATES[selectedAsset] + " ₽ за 1 " + selectedAsset;
+}
+
+function openDetails() {
+  if (currentAmount <= 0) {
+    alert("Введите корректную сумму.");
+    return;
+  }
+
+  const p = JSON.parse(localStorage.getItem("vexo_profile") || "null");
+
+  document.getElementById("phone").value = p?.phone || "";
+  document.getElementById("fullname").value = p?.fullname || "";
+  document.getElementById("bank").value = p?.bank || "";
+  document.getElementById("otherBank").value = p?.otherBank || "";
+  document.getElementById("save").checked = !!p;
+
+  show("details");
+}
+
+function demoSubmit() {
+  const data = {
+    phone: document.getElementById("phone").value.trim(),
+    fullname: document.getElementById("fullname").value.trim(),
+    bank: document.getElementById("bank").value,
+    otherBank: document.getElementById("otherBank").value.trim()
+  };
+
+  if (!data.phone || !data.fullname) {
+    alert("Заполните телефон и ФИО.");
+    return;
+  }
+
+  if (!data.bank && !data.otherBank) {
+    alert("Выберите банк или напишите его название.");
+    return;
+  }
+
+  if (data.bank && data.otherBank) {
+    alert("Укажите только один банк.");
+    return;
+  }
+
+  if (document.getElementById("save").checked) {
+    localStorage.setItem("vexo_profile", JSON.stringify(data));
+  }
+
+  document.getElementById("confirmAsset").textContent = selectedAsset;
+  document.getElementById("confirmAmount").textContent = currentAmount;
+  document.getElementById("confirmRate").textContent = RATES[selectedAsset] + " ₽";
+  document.getElementById("confirmRub").textContent =
+    currentRub.toLocaleString("ru-RU") + " ₽";
+  document.getElementById("confirmPhone").textContent = data.phone;
+  document.getElementById("confirmName").textContent = data.fullname;
+  document.getElementById("confirmBank").textContent = data.bank || data.otherBank;
+
+  show("confirm");
+}
+
+function showProfile() {
+  const p = JSON.parse(localStorage.getItem("vexo_profile") || "null");
+
+  document.getElementById("profileInfo").textContent = p
+    ? "Телефон: " + p.phone + "\nФИО: " + p.fullname +
+      "\nБанк: " + (p.bank || p.otherBank)
+    : "Данные пока не сохранены.";
+
+  show("profile");
+}
+
+function editProfile() {
+  openOrder("USDT");
+  document.getElementById("amount").value = "1";
+  calculate();
+  openDetails();
+}
+
+function finishDemo() {
+  alert("Демонстрация: заявка подтверждена!\nРеальная операция не выполняется.");
+  goHome();
+}
+
+function showRates() {
+  show("rates");
+}
+</script>
+</body>
+</html>
